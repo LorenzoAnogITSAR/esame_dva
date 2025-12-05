@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -372,13 +373,265 @@ elif page == "🤖 Predittore Hit":
         - Publisher: {non_hit_example['Publisher']}
         - Vendite: **{non_hit_example['Global_Sales']:.2f}M** copie
         """)
-# ============ PAGINA 4: MODELLO PREDITTIVO ============
-elif page == "Modello predittivo":
-    st.title("📈 Modello predittivo")
+
+# ============ PAGINA 3: MODELLO PREDITTIVO ============
+elif page == "Modello Predittivo":
+    st.title("📈 Modello Predittivo")
     
     st.markdown("### Visualizzazione del modello utilizzato")
     
+    try:
+        # Calcola metriche del modello
+        features_list = ['Platform', 'Genre', 'Publisher', 'Developer', 'Rating',
+                         'Publisher_Avg_Sales', 'Developer_Hit_Rate', 'Platform_Hit_Rate']
+        
+        df_model = df[features_list + ['Hit']].dropna()
+        
+        X = df_model[features_list].copy()
+        for col in ['Platform', 'Genre', 'Publisher', 'Developer', 'Rating']:
+            X[col] = encoders[col].transform(X[col].astype(str))
+        
+        y = df_model['Hit']
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+        
+        # Calcola predizioni
+        y_pred_train = model.predict(X_train)
+        y_pred_test = model.predict(X_test)
+        y_pred_proba_train = model.predict_proba(X_train)[:, 1]
+        y_pred_proba_test = model.predict_proba(X_test)[:, 1]
+        
+        acc_train = model.score(X_train, y_train)
+        acc_test = model.score(X_test, y_test)
+        auc_train = roc_auc_score(y_train, y_pred_proba_train)
+        auc_test = roc_auc_score(y_test, y_pred_proba_test)
+        cm_test = confusion_matrix(y_test, y_pred_test)
+        
+        # ===== METRICHE GENERALI =====
+        st.markdown("---")
+        st.markdown("## 📊 Metriche di Performance")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("🎯 Accuracy (Test)", f"{acc_test:.1%}", 
+                      delta=f"{(acc_test - acc_train)*100:+.2f}pp",
+                      delta_color="inverse")
+        with col2:
+            st.metric("📈 Accuracy (Train)", f"{acc_train:.1%}")
+        with col3:
+            st.metric("🔄 ROC-AUC (Test)", f"{auc_test:.3f}")
+        with col4:
+            st.metric("🔄 ROC-AUC (Train)", f"{auc_train:.3f}")
+        
+        st.markdown("---")
+        
+        # ===== CONFUSION MATRIX =====
+        col_cm, col_roc = st.columns(2)
+        
+        with col_cm:
+            st.markdown("### 🔢 Confusion Matrix (Test Set)")
+            
+            # Confusion matrix con annotations
+            cm = cm_test
+            tn, fp, fn, tp = cm.ravel()
+            
+            # Crea figura matplotlib
+            fig, ax = plt.subplots(figsize=(6, 5))
+            
+            # Disegna matrice
+            im = ax.imshow(cm, cmap='Blues', aspect='auto')
+            
+            # Aggiungi testo
+            ax.text(0, 0, f'TN\n{tn}', ha='center', va='center', color='white', fontsize=14, fontweight='bold')
+            ax.text(1, 0, f'FP\n{fp}', ha='center', va='center', color='white', fontsize=14, fontweight='bold')
+            ax.text(0, 1, f'FN\n{fn}', ha='center', va='center', color='white', fontsize=14, fontweight='bold')
+            ax.text(1, 1, f'TP\n{tp}', ha='center', va='center', color='white', fontsize=14, fontweight='bold')
+            
+            # Etichette
+            ax.set_xticks([0, 1])
+            ax.set_yticks([0, 1])
+            ax.set_xticklabels(['NON-HIT (0)', 'HIT (1)'], fontsize=11)
+            ax.set_yticklabels(['NON-HIT (0)', 'HIT (1)'], fontsize=11)
+            ax.set_ylabel('Actual', fontsize=11, fontweight='bold')
+            ax.set_xlabel('Predicted', fontsize=11, fontweight='bold')
+            ax.set_title('Confusion Matrix - Test Set', fontsize=12, fontweight='bold', pad=15)
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+            
+            # Metriche dalla confusion matrix
+            sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+            specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+            
+            st.markdown(f"""
+            **Metriche Derivate:**
+            - **Sensitivity (Recall)**: {sensitivity:.1%} - Capacità di identificare veri HIT
+            - **Specificity**: {specificity:.1%} - Capacità di identificare veri NON-HIT
+            - **Precision**: {precision:.1%} - Affidabilità delle predizioni positive
+            """)
+        
+        with col_roc:
+            st.markdown("### 📈 ROC Curve")
+            
+            fpr, tpr, _ = roc_curve(y_test, y_pred_proba_test)
+            
+            fig = go.Figure()
+            
+            # ROC curve
+            fig.add_trace(go.Scatter(
+                x=fpr, y=tpr,
+                mode='lines',
+                name=f'ROC (AUC={auc_test:.3f})',
+                line=dict(color='#3A86FF', width=3)
+            ))
+            
+            # Linea diagonale (modello casuale)
+            fig.add_trace(go.Scatter(
+                x=[0, 1], y=[0, 1],
+                mode='lines',
+                name='Random Classifier',
+                line=dict(color='#E63946', width=2, dash='dash')
+            ))
+            
+            fig.update_layout(
+                title='ROC Curve - Test Set',
+                xaxis_title='False Positive Rate',
+                yaxis_title='True Positive Rate',
+                template='plotly_white',
+                hovermode='closest',
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown(f"""
+            **Interpretazione**: 
+            - L'AUC (Area Under Curve) misura la capacità discriminativa del modello
+            - AUC = 0.5: modello casuale
+            - AUC = 1.0: modello perfetto
+            - **Nostro modello: AUC = {auc_test:.3f}**
+            """)
+        
+        st.markdown("---")
+        
+        # ===== CONFRONTO TRAIN VS TEST =====
+        st.markdown("## 📊 Confronto Train vs Test")
+        
+        col_metrics, col_feat = st.columns(2)
+        
+        with col_metrics:
+            # Grafico Accuracy vs AUC
+            fig = go.Figure()
+            
+            metrics_names = ['Accuracy', 'ROC-AUC']
+            train_scores = [acc_train, auc_train]
+            test_scores = [acc_test, auc_test]
+            
+            fig.add_trace(go.Bar(
+                x=metrics_names, y=train_scores,
+                name='Train',
+                marker_color='#3A86FF',
+                text=[f'{x:.3f}' for x in train_scores],
+                textposition='auto',
+            ))
+            
+            fig.add_trace(go.Bar(
+                x=metrics_names, y=test_scores,
+                name='Test',
+                marker_color='#06A77D',
+                text=[f'{x:.3f}' for x in test_scores],
+                textposition='auto',
+            ))
+            
+            fig.update_layout(
+                title='Metriche: Train vs Test',
+                barmode='group',
+                yaxis_title='Score',
+                template='plotly_white',
+                hovermode='x unified',
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col_feat:
+            st.markdown("### 🧠 Feature Utilizzate")
+            
+            feature_info = {
+                'Platform': '🎮 Piattaforma di lancio',
+                'Genre': '🎨 Genere del gioco',
+                'Publisher': '🏢 Casa editrice',
+                'Developer': '👨‍💻 Sviluppatore',
+                'Rating': '🔞 Classificazione ESRB',
+                'Publisher_Avg_Sales': '📊 Media vendite storica del publisher',
+                'Developer_Hit_Rate': '📈 Percentuale di hit dello sviluppatore',
+                'Platform_Hit_Rate': '🎯 Percentuale di hit della piattaforma'
+            }
+            
+            for feat, desc in feature_info.items():
+                st.markdown(f"- **{feat}**: {desc}")
+        
+        st.markdown("---")
+        
+        # ===== COEFFICIENTI DEL MODELLO =====
+        st.markdown("## 🔑 Analisi Coefficienti del Modello")
+        
+        coef_df = pd.DataFrame({
+            'Feature': features,
+            'Coefficient': model.coef_[0]
+        }).sort_values('Coefficient', ascending=True)
+        
+        # Grafico coefficienti
+        colors = ['#E63946' if x < 0 else '#06A77D' for x in coef_df['Coefficient']]
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            y=coef_df['Feature'],
+            x=coef_df['Coefficient'],
+            orientation='h',
+            marker_color=colors,
+            text=[f'{x:.4f}' for x in coef_df['Coefficient']],
+            textposition='outside',
+        ))
+        
+        fig.update_layout(
+            title='Coefficienti del Modello (Logistic Regression)',
+            xaxis_title='Valore Coefficiente',
+            yaxis_title='Feature',
+            template='plotly_white',
+            height=500,
+            showlegend=False,
+        )
+        
+        fig.add_vline(x=0, line_dash='dash', line_color='black', opacity=0.5)
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown(f"""
+        ### 📖 Interpretazione dei Coefficienti
+        
+        - **Coefficienti POSITIVI** 🟢: aumentano la probabilità di essere un HIT
+        - **Coefficienti NEGATIVI** 🔴: diminuiscono la probabilità di essere un HIT
+        - **Maggiore il valore assoluto**: maggiore l'impatto della feature sulla predizione
+        
+        ### 🎓 Modello Utilizzato
+        
+        **Algoritmo**: Logistic Regression (Regressione Logistica)
+        
+        **Dataset di Training**: {X_train.shape[0]:,} giochi (80% del totale)
+        
+        **Dataset di Test**: {X_test.shape[0]:,} giochi (20% del totale)
+        
+        **Definizione di HIT**: Gioco con vendite globali ≥ 1 milione di copie
+        """)
     
+    except Exception as e:
+        st.error(f"❌ Errore nel caricamento del modello: {str(e)}")
+        st.info("Controlla che il file dati e il modello siano stati addestrati correttamente.")
+
+
 
 # ============ PAGINA 4: ANALISI DATI ============
 elif page == "📈 Analisi Dati":
