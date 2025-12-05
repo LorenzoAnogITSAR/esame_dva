@@ -85,7 +85,7 @@ st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "Navigazione",
-    ["📈 Analisi Dati", "📊 Dashboard Executive", "Modello Predittivo", "🤖 Predittore Hit"]
+    ["📈 Analisi Dati", "📊 Dashboard Executive", ":moneybag: Modello Predittivo", "🤖 Predittore Hit"]
 )
 
 st.sidebar.markdown("---")
@@ -375,8 +375,8 @@ elif page == "🤖 Predittore Hit":
         """)
 
 # ============ PAGINA 3: MODELLO PREDITTIVO ============
-elif page == "Modello Predittivo":
-    st.title("📈 Modello Predittivo")
+elif page == ":moneybag: Modello Predittivo":
+    st.title(":moneybag: Modello Predittivo")
     
     st.markdown("### Visualizzazione del modello utilizzato")
     
