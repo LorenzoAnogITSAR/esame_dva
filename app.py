@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
@@ -83,7 +84,7 @@ st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "Navigazione",
-    ["📊 Dashboard Executive", "🤖 Predittore Hit", "📈 Analisi Dati"]
+    ["📈 Analisi Dati", "📊 Dashboard Executive", "Modello Predittivo", "🤖 Predittore Hit"]
 )
 
 st.sidebar.markdown("---")
@@ -169,7 +170,7 @@ if page == "📊 Dashboard Executive":
     # Note sui dati
     with st.expander("ℹ️ Note sui Dati e Metodologia"):
         st.markdown("""
-        **Periodo Analizzato**: 2000-2015 (esclude giochi recenti ancora in fase di vendita attiva)
+        **Periodo Analizzato**: 1980-2015 (esclude giochi recenti ancora in fase di vendita attiva)
         
         **Dati Mancanti**: 
         - Developer: ~40% missing (comune per giochi vecchi)
@@ -371,15 +372,22 @@ elif page == "🤖 Predittore Hit":
         - Publisher: {non_hit_example['Publisher']}
         - Vendite: **{non_hit_example['Global_Sales']:.2f}M** copie
         """)
+# ============ PAGINA 4: MODELLO PREDITTIVO ============
+elif page == "Modello predittivo":
+    st.title("📈 Modello predittivo")
+    
+    st.markdown("### Visualizzazione del modello utilizzato")
+    
+    
 
-# ============ PAGINA 3: ANALISI DATI ============
-else:
+# ============ PAGINA 4: ANALISI DATI ============
+elif page == "📈 Analisi Dati":
     st.title("📈 Analisi Approfondita dei Dati")
     
     st.markdown("### Esplora le relazioni tra variabili e performance di vendita")
     
     # Analisi comparativa
-    tab1, tab2, tab3 = st.tabs(["🏢 Publisher Analysis", "🎮 Platform vs Genre (Interattiva)", "📊 Trend Storici"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🏢 Publisher Analysis", "🎮 Platform vs Genre (Interattiva)", "📊 Trend Storici", "❌ Dati mancanti"])
     
     with tab1:
         st.markdown("#### Top 15 Publisher per Performance")
@@ -499,3 +507,64 @@ else:
         st.plotly_chart(fig, use_container_width=True)
         
         st.caption("📝 **Insight**: Mostra come i generi più popolari hanno dominato il mercato nel tempo. L'Action rimane costantemente forte, mentre lo Sport cresce nei picchi delle console mainstream.")
+
+    with tab4:
+        st.markdown("#### ❌ Dati Mancanti")
+
+        # Analisi Dati Mancanti per Rating e Recensioni
+
+        # Colonne di interesse per rating e recensioni
+        rating_review_cols = ['Critic_Score', 'Critic_Count', 'User_Score', 'User_Count', 'Rating']
+
+        # Calcola i dati mancanti in numeri assoluti e percentuale
+        missing_analysis = pd.DataFrame({
+            'Colonna': rating_review_cols,
+            'Mancanti': [df[col].isnull().sum() for col in rating_review_cols],
+            'Totale': len(df),
+        })
+        missing_analysis['Percentuale'] = (missing_analysis['Mancanti'] / missing_analysis['Totale'] * 100).round(2)
+        missing_analysis['Disponibili'] = missing_analysis['Totale'] - missing_analysis['Mancanti']
+        missing_analysis['% Disponibili'] = (100 - missing_analysis['Percentuale']).round(2)
+
+        print("📊 ANALISI DATI MANCANTI - Rating e Recensioni")
+        print("=" * 80)
+        print(missing_analysis.to_string(index=False))
+        print("\n")
+
+        # Crea visualizzazione grafica
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Grafico 1: Dati mancanti in percentuale
+        colors_missing = ['#E63946' if x > 50 else '#F77F00' if x > 20 else '#06A77D' for x in missing_analysis['Percentuale']]
+        ax1.barh(missing_analysis['Colonna'], missing_analysis['Percentuale'], color=colors_missing, alpha=0.8)
+        ax1.set_xlabel('% Dati Mancanti', fontsize=11, fontweight='bold')
+        ax1.set_title('Dati Mancanti per Colonna (Rating & Recensioni)', fontsize=12, fontweight='bold')
+        ax1.grid(True, alpha=0.3, axis='x')
+
+        # Aggiungi etichette con valori
+        for i, (col, pct, missing) in enumerate(zip(missing_analysis['Colonna'], missing_analysis['Percentuale'], missing_analysis['Mancanti'])):
+            ax1.text(pct + 1, i, f"{pct:.1f}% ({missing:,} NaN)", va='center', fontsize=10)
+
+        # Grafico 2: Dati disponibili vs mancanti (stacked bar)
+        x_pos = range(len(missing_analysis))
+        ax2.bar(x_pos, missing_analysis['% Disponibili'], label='Disponibili', color='#06A77D', alpha=0.8)
+        ax2.bar(x_pos, missing_analysis['Percentuale'], bottom=missing_analysis['% Disponibili'], label='Mancanti', color='#E63946', alpha=0.8)
+
+        ax2.set_ylabel('Percentuale (%)', fontsize=11, fontweight='bold')
+        ax2.set_title('Disponibilità Dati: Disponibili vs Mancanti', fontsize=12, fontweight='bold')
+        ax2.set_xticks(x_pos)
+        ax2.set_xticklabels(missing_analysis['Colonna'], rotation=45, ha='right')
+        ax2.legend(loc='upper right', fontsize=10)
+        ax2.set_ylim([0, 100])
+        ax2.grid(True, alpha=0.3, axis='y')
+
+        # Aggiungi percentuali sulle barre
+        for i, (avail, miss) in enumerate(zip(missing_analysis['% Disponibili'], missing_analysis['Percentuale'])):
+            if avail > 5:
+                ax2.text(i, avail/2, f"{avail:.0f}%", ha='center', va='center', fontweight='bold', color='white', fontsize=9)
+            if miss > 5:
+                ax2.text(i, avail + miss/2, f"{miss:.0f}%", ha='center', va='center', fontweight='bold', color='white', fontsize=9)
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
